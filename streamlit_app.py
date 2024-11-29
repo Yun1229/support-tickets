@@ -1,10 +1,11 @@
 import datetime
 import random
-
 import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+import hashlib
+
 
 # Show app title and description.
 st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
@@ -16,6 +17,65 @@ st.write(
     existing tickets, and view some statistics.
     """
 )
+
+# Security utilities
+def make_hashes(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def check_hashes(password, hashed_text):
+    return make_hashes(password) == hashed_text
+
+# User Dashboard
+def user_dashboard(username):
+    st.subheader("User Dashboard")
+    st.write("View and add your items here.")
+
+    # Display user's items
+    user_items = [item for item in user_db["items"] if item["owner"] == username]
+    df = pd.DataFrame(user_items)
+    if not df.empty:
+        st.table(df)
+    else:
+        st.write("No items yet.")
+
+    # Add new items
+    item_name = st.text_input("Item Name")
+    item_quantity = st.number_input("Quantity", min_value=1, value=1)
+    if st.button("Add Item"):
+        new_item = {"name": item_name, "quantity": item_quantity, "status": "ordered", "owner": username}
+        user_db["items"].append(new_item)
+        st.success(f"Item {item_name} added successfully!")
+
+# Admin Dashboard
+def admin_dashboard():
+    st.subheader("Admin Dashboard")
+    st.write("View and modify the status of all items.")
+
+    # Display all items
+    if user_db["items"]:
+        df = pd.DataFrame(user_db["items"])
+        st.table(df)
+    else:
+        st.write("No items in the system.")
+
+    # Modify item status
+    item_index = st.number_input("Item Index to modify", min_value=0, max_value=len(user_db["items"]) - 1)
+    new_status = st.selectbox("New Status", ["ordered", "received", "paid"])
+    if st.button("Update Status"):
+        user_db["items"][item_index]["status"] = new_status
+        st.success(f"Item status updated to {new_status}!")
+
+
+# Mock user database
+user_db = {
+    "users": [
+        {"username": "user1", "password": make_hashes("user1_password"), "role": "user"},
+        {"username": "user2", "password": make_hashes("user2_password"), "role": "user"},
+        {"username": "admin", "password": make_hashes("admin_password"), "role": "admin"}
+    ],
+    "items": []  # Stores item details with statuses and owners
+}
+
 
 # Create a random Pandas dataframe with existing tickets.
 if "df" not in st.session_state:
@@ -71,34 +131,45 @@ st.header("Add a ticket")
 # We're adding tickets via an `st.form` and some input widgets. If widgets are used
 # in a form, the app will only rerun once the submit button is pressed.
 with st.form("add_ticket_form"):
-    issue = st.text_area("Describe the issue")
-    priority = st.selectbox("Priority", ["High", "Medium", "Low"])
-    submitted = st.form_submit_button("Submit")
+    # Login or Register
+    tab1, tab2 = st.tabs(["Login", "Register"])
+    with tab1:
+        #run_seq(uri, username, password, database,10)
+        username = st.text_input("Username")
+        password = st.text_input("Password", type='password')
+        login = st.form_submit_button("Login")
+        if login:
+            login = st.sidebar.checkbox("Login")
+            user = next((u for u in user_db["users"] if u["username"] == username), None)
 
-if submitted:
-    # Make a dataframe for the new ticket and append it to the dataframe in session
-    # state.
-    recent_ticket_number = int(max(st.session_state.df.ID).split("-")[1])
-    today = datetime.datetime.now().strftime("%m-%d-%Y")
-    df_new = pd.DataFrame(
-        [
-            {
-                "ID": f"TICKET-{recent_ticket_number+1}",
-                "Issue": issue,
-                "Status": "Open",
-                "Priority": priority,
-                "Date Submitted": today,
-            }
-        ]
-    )
+            if user and check_hashes(password, user['password']):
+                st.success(f"Logged in as {user['username']}")
 
-    # Show a little success message.
-    st.write("Ticket submitted! Here are the ticket details:")
-    st.dataframe(df_new, use_container_width=True, hide_index=True)
-    st.session_state.df = pd.concat([df_new, st.session_state.df], axis=0)
+            if user['role'] == 'user':
+                user_dashboard(username)
+            elif user['role'] == 'admin':
+                admin_dashboard()
+        else:
+            st.error("Invalid username or password")
+
+
+    with tab2:
+        #run_str(uri, username, password, database,50)
+        username = st.text_input("New Username")
+        password = st.text_input("New Password", type='password')
+        register = st.form_submit_button("Register")
+    
+    if register:
+
+        if next((u for u in user_db["users"] if u["username"] == username), None):
+            st.error("Username already exists. Please choose a different username.")
+        else:
+            hashed_password = make_hashes(password)
+            user_db["users"].append({"username": username, "password": hashed_password, "role": "user"})
+            st.success("Registered successfully! You can now login.")
 
 # Show section to view and edit existing tickets in a table.
-st.header("Existing tickets")
+st.header("Ordered items")
 st.write(f"Number of tickets: `{len(st.session_state.df)}`")
 
 st.info(
