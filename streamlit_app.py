@@ -7,6 +7,7 @@ import streamlit as st
 import hashlib
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from streamlit_gsheets import GSheetsConnection
 import json
 
 
@@ -30,9 +31,11 @@ def init_google_sheets():
 
 
 # Connect to Google Sheets
-client = init_google_sheets()
-sheet = client.open("user_db").sheet1  # Open Google Sheet by name
+# client = init_google_sheets()
+# sheet = client.open("user_db").sheet1  # Open Google Sheet by name
 
+conn = st.connection("gsheets", type=GSheetsConnection)
+df = conn.read()
 # Use the Google Sheet
 st.write("Successfully connected to Google Sheets!")
 
