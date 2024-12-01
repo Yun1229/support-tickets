@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import hashlib
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 
 # Show app title and description.
@@ -12,41 +14,50 @@ st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 st.title("Fang's Marine Corporation")
 st.write(
     """
-    This app shows how you can build an internal tool in Streamlit. Here, we are 
-    implementing a support ticket workflow. The user can create a ticket, edit 
+    This app shows how you can build an internal tool in Streamlit. Here, we are
+    implementing a support ticket workflow. The user can create a ticket, edit
     existing tickets, and view some statistics.
     """
 )
 
 # Security utilities
+
+
 def make_hashes(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
 # User Dashboard
+
+
 def user_dashboard(username):
-    st.subheader("User Dashboard")
+    st.subheader(f"{username}'s Dashboard")
     st.write("View and add your items here.")
 
     # Display user's items
-    user_items = [item for item in user_db["items"] if item["owner"] == username]
+    user_items = [item for item in user_db["items"]
+                  if item["owner"] == username]
     df = pd.DataFrame(user_items)
     if not df.empty:
         st.table(df)
     else:
         st.write("No items yet.")
 
-    # Add new items
+        # Add new items
     item_name = st.text_input("Item Name")
     item_quantity = st.number_input("Quantity", min_value=1, value=1)
     if st.button("Add Item"):
-        new_item = {"name": item_name, "quantity": item_quantity, "status": "ordered", "owner": username}
+        new_item = {"name": item_name, "quantity": item_quantity,
+                    "status": "ordered", "owner": username}
         user_db["items"].append(new_item)
         st.success(f"Item {item_name} added successfully!")
 
 # Admin Dashboard
+
+
 def admin_dashboard():
     st.subheader("Admin Dashboard")
     st.write("View and modify the status of all items.")
@@ -59,7 +70,8 @@ def admin_dashboard():
         st.write("No items in the system.")
 
     # Modify item status
-    item_index = st.number_input("Item Index to modify", min_value=0, max_value=len(user_db["items"]) - 1)
+    item_index = st.number_input(
+        "Item Index to modify", min_value=0, max_value=len(user_db["items"]) - 1)
     new_status = st.selectbox("New Status", ["ordered", "received", "paid"])
     if st.button("Update Status"):
         user_db["items"][item_index]["status"] = new_status
@@ -69,9 +81,12 @@ def admin_dashboard():
 # Mock user database
 user_db = {
     "users": [
-        {"username": "user1", "password": make_hashes("user1_password"), "role": "user"},
-        {"username": "user2", "password": make_hashes("user2_password"), "role": "user"},
-        {"username": "admin", "password": make_hashes("admin_password"), "role": "admin"}
+        {"username": "user1", "password": make_hashes(
+            "user1_password"), "role": "user"},
+        {"username": "user2", "password": make_hashes(
+            "user2_password"), "role": "user"},
+        {"username": "admin", "password": make_hashes(
+            "admin_password"), "role": "admin"}
     ],
     "items": []  # Stores item details with statuses and owners
 }
@@ -114,7 +129,8 @@ if "df" not in st.session_state:
         "Status": np.random.choice(["Open", "In Progress", "Closed"], size=100),
         "Priority": np.random.choice(["High", "Medium", "Low"], size=100),
         "Date Submitted": [
-            datetime.date(2023, 6, 1) + datetime.timedelta(days=random.randint(0, 182))
+            datetime.date(2023, 6, 1) +
+            datetime.timedelta(days=random.randint(0, 182))
             for _ in range(100)
         ],
     }
@@ -126,49 +142,55 @@ if "df" not in st.session_state:
 
 
 # Show a section to add a new ticket.
-st.header("Add a ticket")
+st.header("User login")
+st.write("DB username:", st.secrets["db_username"])
+st.write("DB password:", st.secrets["db_password"])
 
 # We're adding tickets via an `st.form` and some input widgets. If widgets are used
 # in a form, the app will only rerun once the submit button is pressed.
-with st.form("add_ticket_form"):
+with st.form("login_form"):
     # Login or Register
     tab1, tab2 = st.tabs(["Login", "Register"])
     with tab1:
-        #run_seq(uri, username, password, database,10)
+        # run_seq(uri, username, password, database,10)
         username = st.text_input("Username")
         password = st.text_input("Password", type='password')
         login = st.form_submit_button("Login")
-        if login:
-            login = st.sidebar.checkbox("Login")
-            user = next((u for u in user_db["users"] if u["username"] == username), None)
 
-            if user and check_hashes(password, user['password']):
-                st.success(f"Logged in as {user['username']}")
+    with tab2:
+        # run_str(uri, username, password, database,50)
+        username = st.text_input("New Username")
+        password = st.text_input("New Password", type='password')
+        register = st.form_submit_button("Register")
 
+
+if login:
+
+    user = next(
+        (u for u in user_db["users"] if u["username"] == username), None)
+
+    if user and check_hashes(password, user['password']):
+        st.success("Logged in successfully!")
+        st.success(f"Hello {user['username']}!")
+
+        with st.form("add_ticket_form"):
             if user['role'] == 'user':
                 user_dashboard(username)
             elif user['role'] == 'admin':
                 admin_dashboard()
-        else:
-            st.error("Invalid username or password")
+    else:
+        st.error("Invalid username or password")
 
+if register:
+    if next((u for u in user_db["users"] if u["username"] == username), None):
+        st.error("Username already exists. Please choose a different username.")
+    else:
+        hashed_password = make_hashes(password)
+        user_db["users"].append(
+            {"username": username, "password": hashed_password, "role": "user"})
+        st.success("Registered successfully! You can now login.")
 
-    with tab2:
-        #run_str(uri, username, password, database,50)
-        username = st.text_input("New Username")
-        password = st.text_input("New Password", type='password')
-        register = st.form_submit_button("Register")
-    
-    if register:
-
-        if next((u for u in user_db["users"] if u["username"] == username), None):
-            st.error("Username already exists. Please choose a different username.")
-        else:
-            hashed_password = make_hashes(password)
-            user_db["users"].append({"username": username, "password": hashed_password, "role": "user"})
-            st.success("Registered successfully! You can now login.")
-
-# Show section to view and edit existing tickets in a table.
+    # Show section to view and edit existing tickets in a table.
 st.header("Ordered items")
 st.write(f"Number of tickets: `{len(st.session_state.df)}`")
 
@@ -207,7 +229,8 @@ st.header("Statistics")
 
 # Show metrics side by side using `st.columns` and `st.metric`.
 col1, col2, col3 = st.columns(3)
-num_open_tickets = len(st.session_state.df[st.session_state.df.Status == "Open"])
+num_open_tickets = len(
+    st.session_state.df[st.session_state.df.Status == "Open"])
 col1.metric(label="Number of open tickets", value=num_open_tickets, delta=10)
 col2.metric(label="First response time (hours)", value=5.2, delta=-1.5)
 col3.metric(label="Average resolution time (hours)", value=16, delta=2)
