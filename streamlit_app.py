@@ -5,8 +5,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import hashlib
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+# import gspread
+# from oauth2client.service_account import ServiceAccountCredentials
+import json
+from streamlit_gsheets import GSheetsConnection
 
 
 # Show app title and description.
@@ -29,6 +31,18 @@ def make_hashes(password):
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
+
+
+conn = st.connection("gsheets", type=GSheetsConnection)
+df = conn.read()
+# Print results.
+for row in df.itertuples():
+    st.write(f"{row.user} has a :{row.password}:")
+
+
+# Save the dataframe in session state (a dictionary-like object that persists across
+# page runs). This ensures our data is persisted when the app updates.
+st.session_state.df = df
 
 # User Dashboard
 
