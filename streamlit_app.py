@@ -5,11 +5,36 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import hashlib
-# import gspread
-# from oauth2client.service_account import ServiceAccountCredentials
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 import json
-from streamlit_gsheets import GSheetsConnection
 
+
+def init_google_sheets():
+    # Define the scope for accessing Google Sheets and Google Drive
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
+    # Load credentials from Streamlit secrets
+    creds = json.loads(st.secrets["connections.gsheets"])
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+        creds, scope)
+
+    # Authorize the gspread client with the credentials
+    client = gspread.authorize(credentials)
+    return client
+
+
+# Connect to Google Sheets
+client = init_google_sheets()
+sheet = client.open("user_db").sheet1  # Open Google Sheet by name
+
+# Use the Google Sheet
+st.write("Successfully connected to Google Sheets!")
 
 # Show app title and description.
 st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
@@ -31,13 +56,6 @@ def make_hashes(password):
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
-
-
-conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read()
-# Print results.
-for row in df.itertuples():
-    st.write(f"{row.user} has a :{row.password}:")
 
 
 # Save the dataframe in session state (a dictionary-like object that persists across
