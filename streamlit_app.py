@@ -14,16 +14,13 @@ st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 # Connect to Google Sheets
 
 
-@st.cache_data
-def google_conn():
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    return conn
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 
 @st.cache_data
 def connect_api(worksheet_name):
     try:
-        conn = google_conn()
+
         worksheet = conn.read(worksheet=f"{worksheet_name}")
         return worksheet
     except APIError as e:
@@ -42,7 +39,7 @@ def update_data(new_user, new_password, contact):
                            new_password], "Contact": [contact]})
     updated_df = pd.concat([df, new_row], ignore_index=True)
     # Update the worksheet with the new DataFrame
-    conn = google_conn()
+
     conn.update(data=updated_df)
 
 
@@ -83,19 +80,13 @@ def authenticate_gsheets():
     return client
 """
 
-conn = google_conn()
-worksheet = conn.read(worksheet="user_list")
-st.table(worksheet)
 
 # Show app title and description.
 st.title("Fang's Marine Corporation")
-st.write(
-    """
-    This app shows how you can build an internal tool in Streamlit. Here, we are
-    implementing a support ticket workflow. The user can create a ticket, edit
-    existing tickets, and view some statistics.
-    """
-)
+
+
+st.write("""This app shows how you can build an internal tool in Streamlit. Here, we areimplementing a support ticket workflow. The user can create a ticket, editexisting tickets, and view some statistics.""")
+
 
 # Show a section to add a new ticket.
 st.header("User login")
@@ -203,7 +194,6 @@ if st.session_state["Login"]:
         st.error("Please enter an item name.")
 
 
-_ = """
 if st.session_state["Login"] and st.session_state["Submit"]:
     st.header("Add a New Item")
     # item_name, page_link = add_item_form()
@@ -251,8 +241,8 @@ if st.session_state["Login"] and st.session_state["Submit"]:
         item_df = conn.read(worksheet="item_list")
 
         itemDisplay(username, item_df)
-"""
 
+_ = """
 with tab2:
     st.rerun()
     st.cache_data.clear()
@@ -277,7 +267,7 @@ with tab2:
             st.success("Registered successfully! You can now login.")
         else:
             st.error("Please fill in both the username and password.")
-
+"""
 
 _ = """
 st.write(f"Number of tickets: `{len(st.session_state.df)}`")
