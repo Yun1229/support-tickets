@@ -180,7 +180,7 @@ if st.session_state["Login"]:
                      hide_index=True, use_container_width=True)
 
         updated_df = pd.concat([item_df, new_row], ignore_index=True)
-        conn = google_conn()
+
         conn.update(worksheet="item_list", data=updated_df)
 
         st.success("The updated order list:")
@@ -243,7 +243,7 @@ if st.session_state["Login"] and st.session_state["Submit"]:
 
 
 with tab2:
-    st.rerun()
+    # st.rerun()
     # st.cache_data.clear()
 
     # user_df = conn.read(worksheet="user_list")
