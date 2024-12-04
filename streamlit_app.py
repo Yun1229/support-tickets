@@ -12,7 +12,6 @@ import datetime
 st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 
 # Connect to Google Sheets
-
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 
