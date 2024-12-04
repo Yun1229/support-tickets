@@ -1,6 +1,5 @@
 from streamlit_gsheets import GSheetsConnection
 from oauth2client.service_account import ServiceAccountCredentials
-
 import gspread
 import hashlib
 import streamlit as st
