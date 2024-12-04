@@ -109,7 +109,7 @@ if 'page_link' not in st.session_state:
 tab1, tab2 = st.tabs(["Login", "Register"])
 with tab1:
     # if not st.session_state["Login"]:
-    # st.cache_data.clear()
+    st.cache_data.clear()
     user_df = connect_api("user_list")
     # user_df = conn.read(worksheet="user_list")
     user_df['Password'] = user_df['Password'].apply(str)
