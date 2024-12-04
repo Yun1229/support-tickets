@@ -20,7 +20,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # @st.cache_data
 def connect_api(worksheet_name):
     try:
-        worksheet = conn.read(spreadsheet="user_list",
+        worksheet = conn.read(spreadsheet="fang_list",
                               worksheet=f"{worksheet_name}")
         return worksheet
     except APIError as e:
