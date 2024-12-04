@@ -1,4 +1,5 @@
-streamlit
+streamlit==1.28
 gspread
 oauth2client
 st-gsheets-connection
+numpy==1.26.4
