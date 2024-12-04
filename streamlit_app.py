@@ -1,46 +1,80 @@
-import datetime
-import random
-import altair as alt
-import numpy as np
-import pandas as pd
-import streamlit as st
-import hashlib
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from streamlit_gsheets import GSheetsConnection
-import json
+from oauth2client.service_account import ServiceAccountCredentials
+
+import gspread
+import hashlib
+import streamlit as st
+import pandas as pd
+import altair as alt
+import datetime
 
 
-def init_google_sheets():
-    # Define the scope for accessing Google Sheets and Google Drive
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    # Load credentials from Streamlit secrets
-    creds = json.loads(st.secrets["connections.gsheets"])
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-        creds, scope)
-
-    # Authorize the gspread client with the credentials
-    client = gspread.authorize(credentials)
-    return client
-
+st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 
 # Connect to Google Sheets
-# client = init_google_sheets()
-# sheet = client.open("user_db").sheet1  # Open Google Sheet by name
 
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read()
-# Use the Google Sheet
-st.write("Successfully connected to Google Sheets!")
+
+
+def connect_api(worksheet_name):
+    try:
+        worksheet = conn.read(worksheet=f"{worksheet_name}")
+        return worksheet
+    except Exception as e:
+        st.warning(
+            'The system is too busy now. Please try again later.', icon="⚠️")
+        st.stop()
+
+
+def update_data(new_user, new_password, contact):
+    df = connect_api("user_list")
+    # df = conn.read(worksheet="user_list")
+    # Add new user data to the DataFrame
+    new_row = pd.DataFrame({"User": [new_user], "Password": [
+                           new_password], "Contact": [contact]})
+    updated_df = pd.concat([df, new_row], ignore_index=True)
+    # Update the worksheet with the new DataFrame
+    conn.update(data=updated_df)
+
+
+def safe_int_conversion(value):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return " "
+
+
+def itemDisplay(username, item_list):
+
+    # item_df = pd.DataFrame(item_list)
+    user_items = item_list[item_list["User"] == username]
+
+    if not user_items.empty:
+        user_items = pd.DataFrame(user_items)
+        user_items = user_items.fillna(" ")
+        user_items["Weight"] = user_items["Weight"].apply(
+            safe_int_conversion)
+        user_items["Price"] = user_items["Price"].apply(
+            safe_int_conversion)
+        st.dataframe(user_items.iloc[:, 1:],
+                     hide_index=True, use_container_width=True)
+
+    else:
+        st.write("No items yet.")
+
+
+_ = """
+def authenticate_gsheets():
+    # Replace 'path/to/credentials.json' with the path to your service account key file
+    credentials = ServiceAccountCredentials.from_service_account_file(
+        "C:/Users/jenny/Desktop/fang/grand-jigsaw-443411-v3-543380910f1d.json",
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    client = gspread.authorize(credentials)
+    return client
+"""
 
 # Show app title and description.
-st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 st.title("Fang's Marine Corporation")
 st.write(
     """
@@ -50,183 +84,188 @@ st.write(
     """
 )
 
-# Security utilities
-
-
-def make_hashes(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
-def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
-
-
-# Save the dataframe in session state (a dictionary-like object that persists across
-# page runs). This ensures our data is persisted when the app updates.
-st.session_state.df = df
-
-# User Dashboard
-
-
-def user_dashboard(username):
-    st.subheader(f"{username}'s Dashboard")
-    st.write("View and add your items here.")
-
-    # Display user's items
-    user_items = [item for item in user_db["items"]
-                  if item["owner"] == username]
-    df = pd.DataFrame(user_items)
-    if not df.empty:
-        st.table(df)
-    else:
-        st.write("No items yet.")
-
-        # Add new items
-    item_name = st.text_input("Item Name")
-    item_quantity = st.number_input("Quantity", min_value=1, value=1)
-    if st.button("Add Item"):
-        new_item = {"name": item_name, "quantity": item_quantity,
-                    "status": "ordered", "owner": username}
-        user_db["items"].append(new_item)
-        st.success(f"Item {item_name} added successfully!")
-
-# Admin Dashboard
-
-
-def admin_dashboard():
-    st.subheader("Admin Dashboard")
-    st.write("View and modify the status of all items.")
-
-    # Display all items
-    if user_db["items"]:
-        df = pd.DataFrame(user_db["items"])
-        st.table(df)
-    else:
-        st.write("No items in the system.")
-
-    # Modify item status
-    item_index = st.number_input(
-        "Item Index to modify", min_value=0, max_value=len(user_db["items"]) - 1)
-    new_status = st.selectbox("New Status", ["ordered", "received", "paid"])
-    if st.button("Update Status"):
-        user_db["items"][item_index]["status"] = new_status
-        st.success(f"Item status updated to {new_status}!")
-
-
-# Mock user database
-user_db = {
-    "users": [
-        {"username": "user1", "password": make_hashes(
-            "user1_password"), "role": "user"},
-        {"username": "user2", "password": make_hashes(
-            "user2_password"), "role": "user"},
-        {"username": "admin", "password": make_hashes(
-            "admin_password"), "role": "admin"}
-    ],
-    "items": []  # Stores item details with statuses and owners
-}
-
-
-# Create a random Pandas dataframe with existing tickets.
-if "df" not in st.session_state:
-
-    # Set seed for reproducibility.
-    np.random.seed(42)
-
-    # Make up some fake issue descriptions.
-    issue_descriptions = [
-        "Network connectivity issues in the office",
-        "Software application crashing on startup",
-        "Printer not responding to print commands",
-        "Email server downtime",
-        "Data backup failure",
-        "Login authentication problems",
-        "Website performance degradation",
-        "Security vulnerability identified",
-        "Hardware malfunction in the server room",
-        "Employee unable to access shared files",
-        "Database connection failure",
-        "Mobile application not syncing data",
-        "VoIP phone system issues",
-        "VPN connection problems for remote employees",
-        "System updates causing compatibility issues",
-        "File server running out of storage space",
-        "Intrusion detection system alerts",
-        "Inventory management system errors",
-        "Customer data not loading in CRM",
-        "Collaboration tool not sending notifications",
-    ]
-
-    # Generate the dataframe with 100 rows/tickets.
-    data = {
-        "ID": [f"TICKET-{i}" for i in range(1100, 1000, -1)],
-        "Issue": np.random.choice(issue_descriptions, size=100),
-        "Status": np.random.choice(["Open", "In Progress", "Closed"], size=100),
-        "Priority": np.random.choice(["High", "Medium", "Low"], size=100),
-        "Date Submitted": [
-            datetime.date(2023, 6, 1) +
-            datetime.timedelta(days=random.randint(0, 182))
-            for _ in range(100)
-        ],
-    }
-    df = pd.DataFrame(data)
-
-    # Save the dataframe in session state (a dictionary-like object that persists across
-    # page runs). This ensures our data is persisted when the app updates.
-    st.session_state.df = df
-
-
 # Show a section to add a new ticket.
 st.header("User login")
-st.write("DB username:", st.secrets["db_username"])
-st.write("DB password:", st.secrets["db_password"])
+# st.write("DB username:", st.secrets["db_username"])
+# st.write("DB password:", st.secrets["db_password"])
 
-# We're adding tickets via an `st.form` and some input widgets. If widgets are used
-# in a form, the app will only rerun once the submit button is pressed.
-with st.form("login_form"):
-    # Login or Register
-    tab1, tab2 = st.tabs(["Login", "Register"])
-    with tab1:
-        # run_seq(uri, username, password, database,10)
-        username = st.text_input("Username")
-        password = st.text_input("Password", type='password')
-        login = st.form_submit_button("Login")
+if "Login" not in st.session_state:
+    st.session_state["Login"] = False
+if "Submit" not in st.session_state:
+    st.session_state["Submit"] = False
 
-    with tab2:
-        # run_str(uri, username, password, database,50)
-        username = st.text_input("New Username")
-        password = st.text_input("New Password", type='password')
-        register = st.form_submit_button("Register")
+if 'username' not in st.session_state:
+    st.session_state.username = None
+if 'item_name' not in st.session_state:
+    st.session_state.item_name = None
+if 'page_link' not in st.session_state:
+    st.session_state.page_link = None
 
+# Login or Register
+tab1, tab2 = st.tabs(["Login", "Register"])
+with tab1:
+    # if not st.session_state["Login"]:
+    st.cache_data.clear()
+    user_df = connect_api("user_list")
+    # user_df = conn.read(worksheet="user_list")
+    user_df['Password'] = user_df['Password'].apply(str)
+
+    username = st.text_input("Username", key='username')
+    password = st.text_input("Password", type='password')
+    login = st.button("Login")
 
 if login:
+    # Reload user data to get the latest changes
+    user = next((u for u in user_df.to_dict("records")
+                if u["User"] == username), None)
+    if user:
+        if password == user['Password']:
+            st.success("Logged in successfully!")
+            st.success(f"Hello {user['User']}!")
+            st.session_state["Login"] = True
 
-    user = next(
-        (u for u in user_db["users"] if u["username"] == username), None)
+            st.header("Your Items")
+            item_list = connect_api("item_list")
+            # item_list = conn.read(worksheet="item_list")
+            itemDisplay(username, item_list)
 
-    if user and check_hashes(password, user['password']):
-        st.success("Logged in successfully!")
-        st.success(f"Hello {user['username']}!")
-
-        with st.form("add_ticket_form"):
-            if user['role'] == 'user':
-                user_dashboard(username)
-            elif user['role'] == 'admin':
-                admin_dashboard()
+        else:
+            st.error("Invalid password. Please try again.")
     else:
-        st.error("Invalid username or password")
+        st.error(
+            "Username not found. Please check your username or register.")
 
-if register:
-    if next((u for u in user_db["users"] if u["username"] == username), None):
-        st.error("Username already exists. Please choose a different username.")
-    else:
-        hashed_password = make_hashes(password)
-        user_db["users"].append(
-            {"username": username, "password": hashed_password, "role": "user"})
-        st.success("Registered successfully! You can now login.")
 
-    # Show section to view and edit existing tickets in a table.
-st.header("Ordered items")
+if st.session_state["Login"]:
+    st.header("Add a New Item")
+    # item_name, page_link = add_item_form()
+    with st.form("add_item_form"):
+        item_name = st.text_input("Item Name", key="item_name")
+        page_link = st.text_input("Page Link", key="page_link")
+        submitted = st.form_submit_button("Submit")
+    if submitted:
+        st.session_state["Submit"] = True
+    if st.session_state["Submit"] and item_name:
+        st.success("Item submitted! Here are the item details:")
+
+        # item_df = conn.read(worksheet="item_list")
+        item_df = connect_api("item_list")
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        new_row = pd.DataFrame(
+            [
+                {
+                    "User": st.session_state.username,
+                    "Item": item_name,
+                    "Link": page_link,
+                    "Date Submitted": today,
+                    "Status": "Ordered",
+                    "Weight": None,
+                    "Price": None,
+                    "Paid": None
+                }
+            ]
+        )
+
+        # st.table(new_row.iloc[:, 1:].reset_index(drop=True))
+        new_row = pd.DataFrame(new_row)
+        new_row = new_row.fillna(" ")
+        new_row["Weight"] = new_row["Weight"].apply(
+            lambda x: int(x) if x != " " else " ")
+        new_row["Price"] = new_row["Price"].apply(
+            lambda x: int(x)if x != " "else " ")
+        st.dataframe(new_row.iloc[:, 1:],
+                     hide_index=True, use_container_width=True)
+
+        updated_df = pd.concat([item_df, new_row], ignore_index=True)
+        conn.update(worksheet="item_list", data=updated_df)
+
+        st.success("The updated order list:")
+        st.cache_data.clear()
+        item_df = connect_api("item_list")
+        # item_df = conn.read(worksheet="item_list")
+
+        itemDisplay(username, item_df)
+    elif st.session_state["Submit"] and not item_name:
+        st.error("Please enter an item name.")
+
+
+_ = """
+if st.session_state["Login"] and st.session_state["Submit"]:
+    st.header("Add a New Item")
+    # item_name, page_link = add_item_form()
+    with st.form("add_item_form"):
+        item_name = st.text_input("Item Name", key="item_name")
+        page_link = st.text_input("Page Link", key="page_link")
+        submitted = st.form_submit_button("Submit")
+    if submitted:
+        st.session_state["Submit"] = True
+
+        st.success("Item submitted! Here are the item details:")
+
+        item_df = conn.read(worksheet="item_list")
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        new_row = pd.DataFrame(
+            [
+                {
+                    "User": st.session_state.username,
+                    "Item": item_name,
+                    "Link": page_link,
+                    "Date Submitted": today,
+                    "Status": "Ordered",
+                    "Weight": None,
+                    "Price": None,
+                    "Paid": None
+                }
+            ]
+        )
+
+        # st.table(new_row.iloc[:, 1:].reset_index(drop=True))
+        new_row = pd.DataFrame(new_row)
+        new_row = new_row.fillna(" ")
+        new_row["Weight"] = new_row["Weight"].apply(
+            lambda x: int(x) if x != " " else " ")
+        new_row["Price"] = new_row["Price"].apply(
+            lambda x: int(x)if x != " "else " ")
+        st.dataframe(new_row.iloc[:, 1:],
+                     hide_index=True, use_container_width=True)
+
+        updated_df = pd.concat([item_df, new_row], ignore_index=True)
+        conn.update(worksheet="item_list", data=updated_df)
+
+        st.success("The updated order list:")
+        st.cache_data.clear()
+        item_df = conn.read(worksheet="item_list")
+
+        itemDisplay(username, item_df)
+"""
+
+with tab2:
+    st.rerun()
+    st.cache_data.clear()
+
+    # user_df = conn.read(worksheet="user_list")
+    user_df = connect_api("user_list")
+
+    username = st.text_input("New Username")
+    password = st.text_input("New Password", type='password')
+    contact = st.text_input(
+        "Contact information", placeholder="Can be your email, phone number or Facebook name.")
+    # st.cache_data.clear()
+    if st.button("Register", key="register_button"):
+
+        if next((u for u in user_df.to_dict("records") if u["User"] == username), None):
+            st.error("Username already exists. Please choose a different username.")
+        elif username and password:
+            # df_new = pd.DataFrame([{"User": username,"Password": password}])
+            # df = pd.concat([df_new, user_df], axis=0)
+            update_data(str(username), str(password), str(contact))
+
+            st.success("Registered successfully! You can now login.")
+        else:
+            st.error("Please fill in both the username and password.")
+
+
+_ = """
 st.write(f"Number of tickets: `{len(st.session_state.df)}`")
 
 st.info(
@@ -299,3 +338,4 @@ priority_plot = (
     )
 )
 st.altair_chart(priority_plot, use_container_width=True, theme="streamlit")
+"""
