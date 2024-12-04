@@ -20,7 +20,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 @st.cache_data
 def connect_api(worksheet_name):
     try:
-
         worksheet = conn.read(worksheet=f"{worksheet_name}")
         return worksheet
     except APIError as e:
@@ -242,7 +241,7 @@ if st.session_state["Login"] and st.session_state["Submit"]:
 
         itemDisplay(username, item_df)
 
-_ = """
+
 with tab2:
     st.rerun()
     st.cache_data.clear()
@@ -267,7 +266,7 @@ with tab2:
             st.success("Registered successfully! You can now login.")
         else:
             st.error("Please fill in both the username and password.")
-"""
+
 
 _ = """
 st.write(f"Number of tickets: `{len(st.session_state.df)}`")
