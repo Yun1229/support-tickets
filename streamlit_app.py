@@ -6,21 +6,31 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import datetime
+from gspread.exceptions import APIError
 
 
 st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 
 # Connect to Google Sheets
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 
+@st.cache_data
+def google_conn():
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    return conn
+
+
+@st.cache_data
 def connect_api(worksheet_name):
     try:
+        conn = google_conn()
         worksheet = conn.read(worksheet=f"{worksheet_name}")
         return worksheet
-    except Exception as e:
+    except APIError as e:
         st.warning(
             'The system is too busy now. Please try again later.', icon="⚠️")
+        st.warning(
+            e)
         st.stop()
 
 
@@ -32,6 +42,7 @@ def update_data(new_user, new_password, contact):
                            new_password], "Contact": [contact]})
     updated_df = pd.concat([df, new_row], ignore_index=True)
     # Update the worksheet with the new DataFrame
+    conn = google_conn()
     conn.update(data=updated_df)
 
 
@@ -71,6 +82,10 @@ def authenticate_gsheets():
     client = gspread.authorize(credentials)
     return client
 """
+
+conn = google_conn()
+worksheet = conn.read(worksheet="user_list")
+st.table(worksheet)
 
 # Show app title and description.
 st.title("Fang's Marine Corporation")
@@ -175,6 +190,7 @@ if st.session_state["Login"]:
                      hide_index=True, use_container_width=True)
 
         updated_df = pd.concat([item_df, new_row], ignore_index=True)
+        conn = google_conn()
         conn.update(worksheet="item_list", data=updated_df)
 
         st.success("The updated order list:")
