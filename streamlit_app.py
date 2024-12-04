@@ -17,7 +17,7 @@ st.set_page_config(page_title="Fang's Marine Corporation", page_icon="🎫")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 
-@st.cache_data
+# @st.cache_data
 def connect_api(worksheet_name):
     try:
         worksheet = conn.read(worksheet=f"{worksheet_name}")
